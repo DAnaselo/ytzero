@@ -671,6 +671,7 @@ export const en = {
     playerLanguage: "Player and caption language",
     quality: "Preferred quality",
     autoQuality: "automatic",
+    playerMaximumQuality: "Maximum playback quality",
     qualityHint: "This is the preferred quality. The original player may change it depending on the connection and available formats.",
     playerSettingsSaved: "Player settings saved",
     playbackSpeed: "Default playback speed",

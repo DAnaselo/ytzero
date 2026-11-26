@@ -48,6 +48,14 @@ describe("progressive direct video stream", () => {
     expect(selector).not.toContain("22/");
     expect(commands[0]).toContain("--skip-download");
   });
+  test("applies a playback-only cap without reusing the profile's cached stream", async () => {
+    const { streaming, commands } = fixture("720");
+    expect((await streaming.getDirectVideoResponse(1, "video", "bytes=0-1"))?.status).toBe(206);
+    expect((await streaming.getDirectVideoResponse(1, "video", "bytes=0-1", undefined, "360"))?.status).toBe(206);
+    expect((await streaming.getDirectVideoResponse(1, "video", "bytes=2-3", undefined, "360"))?.status).toBe(206);
+    expect(commands.map((command) => command[command.indexOf("-f") + 1].match(/height<=(\d+)/)?.[1])).toEqual(["720", "360"]);
+  });
+
   test("turns missing and open-ended browser ranges into finite upstream requests with Content-Length", async () => {
     const { streaming, requests } = fixture();
     const first = await streaming.getDirectVideoResponse(1, "video", null);

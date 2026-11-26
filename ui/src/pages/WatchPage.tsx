@@ -142,6 +142,8 @@ export default function WatchPage() {
     exitStreaming,
     exitDirectStream,
     directProgressive,
+    directQuality,
+    changeDirectQuality,
     goToUpNextVideo,
     handleEnded,
     id,
@@ -338,7 +340,7 @@ export default function WatchPage() {
                   ref={playerRef}
                   hls={playerKind === "direct" && !directProgressive}
                   durationSeconds={parseVideoDurationSeconds(video.duration) ?? undefined}
-                  src={playerKind === "direct" ? (directProgressive ? api.directStreamUrl(video.video_id) : api.directHlsUrl(video.video_id)) : api.streamUrl(video.video_id)}
+                  src={playerKind === "direct" ? (directProgressive ? api.directStreamUrl(video.video_id, directQuality) : api.directHlsUrl(video.video_id, directQuality)) : api.streamUrl(video.video_id)}
                   poster={videoThumbnail(video.thumbnail)}
                   autoplay={!watchTogetherRoomId}
                   transportLocked={watchTogetherTransportLocked}
@@ -368,6 +370,7 @@ export default function WatchPage() {
                     bg: Number(settings?.player_sub_bg ?? 75),
                   }}
                   onSubtitleSizeChange={changeSubtitleSize}
+                  qualityControl={playerKind === "direct" && !watchTogetherRoomId ? { value: directQuality, onChange: changeDirectQuality } : undefined}
                   onError={playerKind === "direct" ? exitDirectStream : undefined}
                   onDownload={playerKind === "direct" && downloadsEnabled && downloadStatus !== "queued" && downloadStatus !== "downloading" ? requestDownload : undefined}
                   downloadLabel={t("downloadLocally")}

@@ -763,6 +763,7 @@ export const ptBR: Locale = {
     "playerLanguage": "Linguagem do jogador e legenda",
     "quality": "Qualidade preferida",
     "autoQuality": "automático",
+    "playerMaximumQuality": "Qualidade máxima de reprodução",
     "qualityHint": "Esta é a qualidade preferida. O jogador original pode alterá-lo dependendo da conexão e formatos disponíveis.",
     "playerSettingsSaved": "Configurações do jogador salvas",
     "playbackSpeed": "Velocidade de reprodução padrão",

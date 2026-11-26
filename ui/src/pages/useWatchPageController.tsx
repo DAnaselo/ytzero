@@ -34,6 +34,7 @@ import { useWatchPlaybackPosition } from "./useWatchPlaybackPosition";
 import { useYouTubeMediaSession } from "./useYouTubeMediaSession";
 import { resolveShortcutBindings, SHORTCUT_CLOSE_EVENT, shortcutActionMatches } from "../keyboardShortcuts";
 import { normalizeWatchCommentsMode } from "../../../shared/watchComments";
+import type { DirectPlaybackQuality } from "../../../shared/directPlaybackQuality";
 
 const CINEMA_MODE_KEY = "watchCinemaMode";
 export function useWatchPageController(audioModeRequested: boolean = false) {
@@ -196,6 +197,8 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
   const [youtubeError, setYoutubeError] = useState<number | null>(null);
   const [directFallback, setDirectFallback] = useState(false);
   const [directProgressive, setDirectProgressive] = useState(false);
+  const [directQualityOverride, setDirectQualityOverride] = useState<{ videoId: string; quality?: DirectPlaybackQuality }>();
+  const directQuality = directQualityOverride?.videoId === id ? directQualityOverride?.quality : undefined;
   const downloadPollGenerationRef = useRef(0);
   // Path to the next playlist video, read by the player's onStateChange when a
   // video ends. A ref keeps the player effect free of playlist dependencies.
@@ -509,6 +512,12 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     setSkipStreaming(true);
   }, [capturePlaybackPosition]);
 
+  const changeDirectQuality = (quality?: DirectPlaybackQuality) => {
+    if (!id || quality === directQuality) return;
+    capturePlaybackPosition();
+    setDirectQualityOverride({ videoId: id, quality });
+  };
+
   const exitDirectStream = useCallback(() => {
     capturePlaybackPosition();
     if (!directProgressive) {
@@ -524,7 +533,7 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
   }, [id, playerKind]);
 
   useEffect(() => { setDirectFallback(false); }, [id]);
-  useEffect(() => { setDirectProgressive(false); }, [id]);
+  useEffect(() => { setDirectProgressive(false); setDirectQualityOverride(undefined); }, [id]);
 
   // Effective playback rate: per-channel override, else the global default.
   // Kept in a ref so the player effect can read it without re-creating the player.
@@ -1514,6 +1523,8 @@ export function useWatchPageController(audioModeRequested: boolean = false) {
     dismissUpNextVideo,
     exitDirectStream,
     directProgressive,
+    directQuality,
+    changeDirectQuality,
     exitStreaming,
     goToUpNextVideo,
     handleEnded,

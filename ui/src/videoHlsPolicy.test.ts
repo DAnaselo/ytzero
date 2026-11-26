@@ -13,6 +13,11 @@ describe("video HLS policy", () => {
     expect(videoHlsStartPosition(7_198, 7_200)).toBe(0);
   });
 
+  test("resumes quality switches near the end at the viewer's position", () => {
+    expect(videoHlsStartPosition(7_198.5, 7_200, true)).toBe(7_198.5);
+    expect(videoHlsStartPosition(7_200, 7_200, true)).toBe(7_199.9);
+  });
+
   test("prefers native HLS whenever the media element advertises it", () => {
     expect(shouldUseNativeVideoHls("probably", "Apple Computer, Inc.")).toBe(true);
     expect(shouldUseNativeVideoHls("maybe", "Apple Computer, Inc.")).toBe(true);

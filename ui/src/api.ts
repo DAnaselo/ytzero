@@ -1,4 +1,5 @@
 import { apiFetch } from "./apiTransport";
+import type { DirectPlaybackQuality } from "../../shared/directPlaybackQuality";
 import { http, sharedGet } from "./apiHttp";
 import { devicePairingApi } from "./devicePairingApi";
 import type { EmojiSkinTone } from "./emojiSkinTone";
@@ -258,8 +259,8 @@ export const api = {
   pinDownload: (id: string, pinned: boolean, profileId?: number) =>
     http<{ ok: true; download: VideoDownload | null }>(`/videos/${id}/download/pin${profileId ? `?profile_id=${profileId}` : ""}`, { method: "PUT", body: JSON.stringify({ pinned }) }),
   streamUrl: (id: string) => `/api/videos/${id}/stream`,
-  directStreamUrl: (id: string) => `/api/videos/${id}/direct-stream`,
-  directHlsUrl: (id: string) => `/api/videos/${id}/direct-hls/index.m3u8`,
+  directStreamUrl: (id: string, quality?: DirectPlaybackQuality) => `/api/videos/${id}/direct-stream${quality ? `?quality=${quality}` : ""}`,
+  directHlsUrl: (id: string, quality?: DirectPlaybackQuality) => `/api/videos/${id}/direct-hls/index.m3u8${quality ? `?quality=${quality}` : ""}`,
   hlsUrl: (id: string) => `/api/videos/${id}/hls/index.m3u8`,
   audioUrl: (id: string) => `/api/videos/${id}/audio`,
   audioHlsUrl: (id: string) => `/api/videos/${id}/audio/index.m3u8`,

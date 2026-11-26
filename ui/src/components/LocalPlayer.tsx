@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ArrowDownToLine, Camera, Clapperboard, LoaderCircle, Maximize, Minimize, MonitorPlay, Pause, PictureInPicture2, Play, Volume2, VolumeX } from "lucide-react";
+import { ArrowDownToLine, Camera, Clapperboard, LoaderCircle, Maximize, Minimize, MonitorPlay, Pause, PictureInPicture2, Play, Settings, Volume2, VolumeX } from "lucide-react";
 import type { AvailableSubtitle, SponsorSegment, VideoChapter, VideoSubtitle } from "../api";
 import { api, SB_CATEGORIES } from "../api";
 import { subtitleLanguageLabel } from "../subtitleLanguages";
@@ -18,6 +18,8 @@ import {
   type LocalPlayerTap,
 } from "../localPlayerTapGesture";
 import { useVideoHlsSource } from "./useVideoHlsSource";
+import { Menu, MenuItem, Popover } from "./ui";
+import { DIRECT_PLAYBACK_QUALITIES, type DirectPlaybackQuality } from "../../../shared/directPlaybackQuality";
 import "./LocalPlayer.css";
 import "./PlayerVolume.css";
 import "./LocalPlayerTransportLock.css";
@@ -103,6 +105,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   liveLabel?: string;
   durationSeconds?: number;
   onError?: () => void;
+  qualityControl?: { value?: DirectPlaybackQuality; onChange: (quality?: DirectPlaybackQuality) => void };
   // Streaming mode only: leave the experimental stream for the viewer's own
   // configured player (rendered as a centred button in the control bar).
   onExitStreaming?: () => void;
@@ -143,6 +146,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   liveLabel,
   durationSeconds,
   onError,
+  qualityControl,
   onExitStreaming,
   exitStreamingLabel,
   onDownload,
@@ -161,6 +165,12 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   const spaceHoldTimerRef = useRef<number | null>(null);
   const spaceHoldActiveRef = useRef(false);
 
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const showQualityMenu = Boolean(qualityControl && qualityMenuOpen);
+  const [qualityResume, setQualityResume] = useState<{ position: number; playing: boolean; rate: number }>();
+  const resume = qualityControl ? qualityResume : undefined;
+  const sourceStart = resume?.position ?? startSeconds;
+  const sourceAutoplay = resume?.playing ?? autoplay;
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -327,13 +337,29 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
     destroy: () => videoRef.current?.pause(),
   }), []);
 
+  const selectQuality = (quality?: DirectPlaybackQuality) => {
+    setQualityMenuOpen(false);
+    const video = videoRef.current;
+    if (!video || video.readyState < 1 || !qualityControl || quality === qualityControl.value) return;
+    setQualityResume({ position: video.currentTime, playing: !video.paused && !video.ended, rate: video.playbackRate });
+    qualityControl.onChange(quality);
+  };
+
+  const handleSourceError = () => {
+    const video = videoRef.current;
+    if (resume && video && video.currentTime > 0) {
+      setQualityResume({ position: video.currentTime, playing, rate: video.playbackRate });
+    }
+    onError?.();
+  };
+
   // Initial position, rate and volume once metadata is in.
   const onLoadedMetadata = () => {
     const v = videoRef.current;
     if (!v) return;
     setDuration(Number.isFinite(v.duration) ? v.duration : 0);
-    if (!hls && startSeconds > 0 && startSeconds < v.duration - 5) v.currentTime = startSeconds;
-    v.playbackRate = playbackRate;
+    if (!hls && sourceStart > 0 && sourceStart < v.duration - (resume ? 0 : 5)) v.currentTime = sourceStart;
+    v.playbackRate = resume?.rate ?? playbackRate;
     enforceLocalPlayerVolume(v, volume);
     v.muted = muted;
     setBuffering(false);
@@ -345,7 +371,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   // blocks autoplay-with-sound, retry muted (always allowed) so the stream
   // actually plays — the viewer can unmute from the volume control.
   const tryStreamAutoplay = useCallback(() => {
-    if (!autoplay) return;
+    if (!sourceAutoplay) return;
     const v = videoRef.current;
     if (!v) return;
     v.play().catch(() => {
@@ -353,16 +379,17 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
       setMuted(true);
       v.play().catch(() => {});
     });
-  }, [autoplay]);
+  }, [sourceAutoplay]);
 
   useVideoHlsSource({
     active: hls,
     durationSeconds,
     mediaRef: videoRef,
-    onFatalError: onError,
+    onFatalError: onError && handleSourceError,
     onReady: tryStreamAutoplay,
     src,
-    startSeconds,
+    startSeconds: sourceStart,
+    resume: Boolean(resume),
   });
 
   useEffect(() => {
@@ -715,7 +742,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
   return (
     <div
       ref={rootRef}
-      className={`lp-root${controlsVisible || !playing ? "" : " lp-hide-cursor"}${transportLocked ? " lp-transport-locked" : ""}`}
+      className={`lp-root${controlsVisible || showQualityMenu || !playing ? "" : " lp-hide-cursor"}${transportLocked ? " lp-transport-locked" : ""}`}
       onMouseMove={showControls}
       onMouseLeave={() => { if (playing) setControlsVisible(false); }}
     >
@@ -726,7 +753,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
         aria-label={title}
         src={hls ? undefined : src}
         poster={poster}
-        autoPlay={autoplay}
+        autoPlay={sourceAutoplay}
         playsInline
         aria-disabled={transportLocked || undefined}
         onPointerUp={onVideoPointerUp}
@@ -756,7 +783,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
           setControlsVisible(true);
           onEnded?.();
         }}
-        onError={() => { if (!hls) onError?.(); }}
+        onError={() => { if (!hls) handleSourceError(); }}
       >
         {activeSub && (
           <track
@@ -802,7 +829,7 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
         </button>
       )}
 
-      <div className={`lp-controls${controlsVisible || !playing ? " visible" : ""}`}>
+      <div className={`lp-controls${controlsVisible || showQualityMenu || !playing ? " visible" : ""}`}>
         <div
           ref={barRef}
           className={`lp-bar${transportLocked ? " lp-bar--locked" : ""}`}
@@ -865,6 +892,37 @@ const LocalPlayer = forwardRef<LocalPlayerHandle, {
             <button className="lp-btn" onClick={onDownload} aria-label={downloadLabel} disabled={transportLocked}>
               <ArrowDownToLine size={19} />
             </button>
+          )}
+          {qualityControl && (
+            <Popover
+              open={showQualityMenu}
+              onOpenChange={setQualityMenuOpen}
+              placement="top"
+              surface="menu"
+              title={t("playerMaximumQuality")}
+              trigger={
+                <button
+                  type="button"
+                  className="lp-btn"
+                  aria-label={t("playerMaximumQuality")}
+                  aria-haspopup="menu"
+                  disabled={duration <= 0}
+                >
+                  <Settings size={19} />
+                </button>
+              }
+            >
+              <Menu>
+                <MenuItem role="menuitemradio" aria-checked={qualityControl.value === undefined} selected={qualityControl.value === undefined} onClick={() => selectQuality()}>
+                  {t("playlistDownloadQualityDefault")}
+                </MenuItem>
+                {DIRECT_PLAYBACK_QUALITIES.map((quality) => (
+                  <MenuItem key={quality} role="menuitemradio" aria-checked={quality === qualityControl.value} selected={quality === qualityControl.value} onClick={() => selectQuality(quality)}>
+                    {quality === "best" ? t("playlistDownloadQualityBest") : `${quality}p`}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Popover>
           )}
           <SubtitlePicker
             videoId={videoId}

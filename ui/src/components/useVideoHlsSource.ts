@@ -19,6 +19,7 @@ export function useVideoHlsSource({
   onReady,
   src,
   startSeconds,
+  resume = false,
 }: {
   active: boolean;
   durationSeconds?: number;
@@ -27,6 +28,7 @@ export function useVideoHlsSource({
   onReady: () => void;
   src: string;
   startSeconds: number;
+  resume?: boolean;
 }): void {
   const callbacksRef = useRef({ onFatalError, onReady });
   callbacksRef.current = { onFatalError, onReady };
@@ -43,7 +45,7 @@ export function useVideoHlsSource({
       }
       return;
     }
-    const startPosition = videoHlsStartPosition(startSeconds, durationSeconds);
+    const startPosition = videoHlsStartPosition(startSeconds, durationSeconds, resume);
     let cancelled = false;
     let fatalReported = false;
     let hls: import("hls.js").default | null = null;
@@ -226,10 +228,10 @@ export function useVideoHlsSource({
           if (pendingRecovery.position === 0) instance.startLoad(0);
           return;
         }
+        fatal();
         detachHlsMediaListeners();
         instance.destroy();
         hls = null;
-        fatal();
       });
       instance.attachMedia(media);
     }).catch(fatal);
@@ -241,5 +243,5 @@ export function useVideoHlsSource({
       removeTransportListeners();
       cleanMediaSource();
     };
-  }, [active, durationSeconds, mediaRef, src, startSeconds]);
+  }, [active, durationSeconds, mediaRef, resume, src, startSeconds]);
 }

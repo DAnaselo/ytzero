@@ -17,13 +17,14 @@ await database.prepare("INSERT OR REPLACE INTO download_settings(user_id,key,val
 const adult = await createSession(1, "account");
 const child = await createSession(2, "account");
 let calls = 0;
-directVideoStreaming.getDirectHlsPlaylist = async (userId, videoId, file, _signal, generation) => {
+directVideoStreaming.getDirectHlsPlaylist = async (userId, videoId, file, _signal, generation, quality) => {
   calls++;
   assert.equal(userId, 1);
   assert.equal(videoId, "direct-test");
   if (file !== "index.m3u8" && generation !== "test-version") return { kind: "stale" };
   const base = "/api/videos/direct-test/direct-hls";
-  if (file === "index.m3u8") return { kind: "playlist", playlist: `#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI="${base}/audio.m3u8?v=test-version"\n${base}/video.m3u8?v=test-version\n` };
+  const query = `?v=test-version${quality ? `&quality=${quality}` : ""}`;
+  if (file === "index.m3u8") return { kind: "playlist", playlist: `#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI="${base}/audio.m3u8${query}"\n${base}/video.m3u8${query}\n` };
   const media = file.replace("m3u8", "mp4");
   return { kind: "playlist", playlist: `#EXTM3U\n#EXT-X-MAP:URI="${base}/${media}?v=test-version",BYTERANGE="4@0"\n#EXTINF:6,\n#EXT-X-BYTERANGE:4@4\n${base}/${media}?v=test-version\n#EXT-X-ENDLIST\n` };
 };
@@ -43,7 +44,15 @@ const request = (file: string, token = adult) => app.request(`http://localhost/a
 assert.equal((await request("index.m3u8", "")).status, 401);
 assert.equal((await request("index.m3u8", child)).status, 403);
 assert.equal((await request("unexpected.ts")).status, 404);
+assert.equal((await request("index.m3u8?quality=240")).status, 400);
+assert.equal((await request("index.m3u8?quality=480", child)).status, 403);
+assert.equal((await app.request("http://localhost/api/videos/direct-test/direct-stream?quality=240", {
+  headers: { Authorization: `Bearer ${adult}` },
+})).status, 400);
 assert.equal(calls, 0);
+const capped = await request("index.m3u8?quality=480");
+assert.equal(capped.status, 200);
+assert.match(await capped.text(), /video\.m3u8\?v=test-version&quality=480/);
 const master = await request("index.m3u8");
 assert.equal(master.status, 200);
 assert.match(master.headers.get("content-type")!, /mpegurl/);

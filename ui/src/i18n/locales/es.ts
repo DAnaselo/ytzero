@@ -767,6 +767,7 @@ export const es: Locale = {
     playerLanguage: "Idioma del reproductor y los subtítulos",
     quality: "Calidad preferida",
     autoQuality: "automática",
+    playerMaximumQuality: "Calidad máxima de reproducción",
     qualityHint: "Esta es la calidad preferida. El reproductor original puede cambiarla según la conexión y los formatos disponibles.",
     playerSettingsSaved: "Ajustes del reproductor guardados",
     playbackSpeed: "Velocidad de reproducción predeterminada",

@@ -763,6 +763,7 @@ export const ja: Locale = {
     "playerLanguage": "プレイヤーとキャプション言語",
     "quality": "好まれる質",
     "autoQuality": "自動制御",
+    "playerMaximumQuality": "再生画質の上限",
     "qualityHint": "これは好みの品質です。 元のプレーヤーは、接続と利用可能なフォーマットに応じて変更することができます。",
     "playerSettingsSaved": "保存されたプレーヤーの設定",
     "playbackSpeed": "デフォルトの再生速度",

@@ -1,8 +1,11 @@
 export type VideoHlsRecoveryAction = "ignore" | "reload-master" | "restart-network" | "recover-media" | "fatal";
 
-export function videoHlsStartPosition(startSeconds: number, durationSeconds?: number): number {
+export function videoHlsStartPosition(startSeconds: number, durationSeconds?: number, resume = false): number {
   if (!Number.isFinite(startSeconds) || startSeconds <= 0) return 0;
-  if (Number.isFinite(durationSeconds) && Number(durationSeconds) > 0 && startSeconds >= Number(durationSeconds) - 5) return 0;
+  if (durationSeconds !== undefined && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+    if (resume) return Math.min(startSeconds, Math.max(0, durationSeconds - 0.1));
+    if (startSeconds >= durationSeconds - 5) return 0;
+  }
   return startSeconds;
 }
 

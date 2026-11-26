@@ -671,6 +671,7 @@ export const pl: Locale = {
     playerLanguage: "Język odtwarzacza i napisów",
     quality: "Preferowana jakość",
     autoQuality: "automatyczna",
+    playerMaximumQuality: "Maksymalna jakość odtwarzania",
     qualityHint: "Odtwarzacz może dobrać inną jakość do łącza i dostępnych formatów.",
     playerSettingsSaved: "Zapisano ustawienia playera",
     playbackSpeed: "Domyślna prędkość odtwarzania",

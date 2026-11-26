@@ -160,6 +160,47 @@ afterEach(() => {
 });
 
 describe("direct no-transcode video HLS", () => {
+  test("isolates concurrent qualities and routes rendition and range requests to their selected source", async () => {
+    const media = mediaFixture([6_000, 6_000], [2_000, 2_000]);
+    const selectors: string[] = [];
+    const spawn = ((command: string[]) => {
+      const selector = command[command.indexOf("-f") + 1];
+      selectors.push(selector);
+      const metadata = JSON.parse(selection(1));
+      if (selector.includes("[height<=480]")) {
+        Object.assign(metadata.requested_formats[0], { format_id: "135", width: 854, height: 480 });
+      }
+      return fakeProcess(JSON.stringify(metadata));
+    }) as unknown as typeof Bun.spawn;
+    const fetchImpl = (async (_input, init) => rangedResponse(media.bytes, new Headers(init?.headers).get("range"))) as typeof fetch;
+    const streaming = createDownloadVideoDirectStreaming({
+      ...directDependencies(spawn, fetchImpl),
+      resourcePath: "direct-hls",
+      dlSettings: async () => ({ quality: "1080" }),
+    });
+
+    const [standard, capped] = await Promise.all([
+      streaming.getDirectHlsPlaylist(1, "video", "index.m3u8"),
+      streaming.getDirectHlsPlaylist(1, "video", "index.m3u8", undefined, undefined, "480"),
+    ]);
+    if (standard.kind !== "playlist" || capped.kind !== "playlist") throw new Error("missing playlist");
+    expect(standard.playlist).toContain("RESOLUTION=1920x1080");
+    expect(capped.playlist).toContain("RESOLUTION=854x480");
+    const version = capped.playlist.match(/video\.m3u8\?v=([a-f0-9]+)&quality=480/)?.[1];
+    expect(version).toBeDefined();
+    const rendition = await streaming.getDirectHlsPlaylist(1, "video", "video.m3u8", undefined, version, "480");
+    expect(rendition.kind === "playlist" && rendition.playlist).toContain(`video.mp4?v=${version}&quality=480`);
+    const resource = await streaming.getDirectHlsResource(1, "video", "video.mp4", "bytes=0-15", undefined, version, "480");
+    expect(resource.kind === "response" && resource.response.status).toBe(206);
+    expect((await streaming.getDirectHlsResource(1, "video", "video.mp4", "bytes=0-15", undefined, version)).kind).toBe("stale");
+    expect(selectors).toHaveLength(2);
+    expect(selectors.some((selector) => selector.includes("[height<=1080]"))).toBe(true);
+
+    streaming.invalidateDirectHlsSources(1);
+    expect((await streaming.getDirectHlsPlaylist(1, "video", "index.m3u8", undefined, undefined, "480")).kind).toBe("playlist");
+    expect(selectors).toHaveLength(3);
+  });
+
   test("retries a temporary missing-format response before failing the native manifest", async () => {
     const media = mediaFixture([6_000, 6_000], [2_000, 2_000]);
     let attempts = 0;

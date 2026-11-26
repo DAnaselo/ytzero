@@ -669,6 +669,7 @@ export const hu: Locale = {
     playerLanguage: "Lejátszó és felirat nyelve",
     quality: "Preferált minőség",
     autoQuality: "automatikus",
+    playerMaximumQuality: "Maximális lejátszási minőség",
     qualityHint: "Ez a preferált minőség. Az eredeti lejátszó a kapcsolattól és az elérhető formátumoktól függően megváltoztathatja.",
     playerSettingsSaved: "Lejátszó-beállítások mentve",
     playbackSpeed: "Alapértelmezett lejátszási sebesség",

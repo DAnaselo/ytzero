@@ -21,6 +21,7 @@ import { registerYtdlpUpdateRoutes } from "./ytdlpUpdateRoutes";
 import { ytdlpUpdateChannel, ytdlpUpdateIntervalDays } from "../ytdlpUpdater";
 import { ensureOnDemandVideo, OnDemandVideoImportError } from "../onDemandVideoImport";
 import type { DownloadQuality } from "../downloadSettings";
+import { isDirectPlaybackQuality } from "../../../shared/directPlaybackQuality";
 import { invalidateYouTubeCookieHealth, youtubeCookieHealth } from "../youtubeCookieJar";
 
 type ApiEnvironment = { Variables: { userId: number; sessionAdmin?: boolean; profileAdmin?: boolean } };
@@ -344,7 +345,11 @@ async function directStreamResponse(c: ApiContext) {
     return c.json({ error: "direct stream unavailable" }, 409);
   }
   if (!await ytdlpStatus()) return c.json({ error: "yt-dlp unavailable" }, 503);
-  const response = await getDirectVideoResponse(uid, id, c.req.header("range") ?? null, c.req.raw.signal);
+  const quality = c.req.query("quality");
+  if (quality !== undefined && !isDirectPlaybackQuality(quality)) {
+    return c.json({ error: "invalid playback quality" }, 400);
+  }
+  const response = await getDirectVideoResponse(uid, id, c.req.header("range") ?? null, c.req.raw.signal, quality);
   return response ?? c.json({ error: "direct stream unavailable" }, 502);
 }
 

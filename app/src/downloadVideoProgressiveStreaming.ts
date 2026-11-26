@@ -1,3 +1,4 @@
+import type { DirectPlaybackQuality } from "../../shared/directPlaybackQuality";
 import { audioRangeHeader, parseAudioRange, parseAudioUnsatisfiedTotal, validateAudioRangeResponse } from "./audioRange";
 import { fetchGoogleVideoResponse, safeGoogleVideoUrl } from "./audioUpstreamUrl";
 import { downloadCookieAttempts, isAnonymousAddressRefusal, recordDownloadAttempt } from "./downloadStrategy";
@@ -36,7 +37,9 @@ const MAX_BUFFERED_REQUESTS = 4;
 const FRESH_URL_WINDOW_MS = 5_000;
 const FRESH_URL_RETRY_DELAYS_MS = [250, 400, 650, 1_000];
 
-function keyFor(userId: number, videoId: string) { return `${userId}:${videoId}`; }
+function keyFor(userId: number, videoId: string, quality?: DirectPlaybackQuality) {
+  return `${userId}:${videoId}:${quality ?? ""}`;
+}
 
 function sourceExpiry(url: string, now: number): number {
   try {
@@ -65,10 +68,10 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
   const resolutions = new Map<string, Resolution>();
   const bufferedRequests = new Map<number, number>();
 
-  async function resolveAttempt(userId: number, videoId: string, useCookies: boolean, signal: AbortSignal): Promise<{ source: Source | null; refused: boolean }> {
-    const quality = Number((await dlSettings(userId)).quality);
+  async function resolveAttempt(userId: number, videoId: string, useCookies: boolean, signal: AbortSignal, quality: DirectPlaybackQuality | undefined): Promise<{ source: Source | null; refused: boolean }> {
+    const requestedHeight = Number(quality ?? (await dlSettings(userId)).quality);
     if (signal.aborted) return { source: null, refused: false };
-    const height = Number.isFinite(quality) && quality > 0 ? Math.min(Math.floor(quality), 720) : 720;
+    const height = Number.isFinite(requestedHeight) && requestedHeight > 0 ? Math.min(Math.floor(requestedHeight), 720) : 720;
     const args = [
       `https://www.youtube.com/watch?v=${videoId}`, "--ignore-config", "--no-playlist", "--no-warnings", "--skip-download",
       "-f", `best[ext=mp4][vcodec^=avc1][acodec^=mp4a][protocol^=http][height<=${height}]`,
@@ -100,11 +103,11 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
     }
   }
 
-  async function resolveFresh(userId: number, videoId: string, signal: AbortSignal): Promise<Source | null> {
+  async function resolveFresh(userId: number, videoId: string, signal: AbortSignal, quality: DirectPlaybackQuality | undefined): Promise<Source | null> {
     if (!(await ytdlpStatus()) || signal.aborted) return null;
     let refused = false;
     for (const useCookies of downloadCookieAttempts(downloadCookiesConfigured(userId), userId)) {
-      const result = await resolveAttempt(userId, videoId, useCookies, signal);
+      const result = await resolveAttempt(userId, videoId, useCookies, signal, quality);
       refused ||= result.refused;
       if (result.source) { recordDownloadAttempt(userId, useCookies, true, refused); return result.source; }
       if (signal.aborted) return null;
@@ -133,8 +136,8 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
     });
   }
 
-  async function resolveSource(userId: number, videoId: string, signal?: AbortSignal, force = false): Promise<Source | null> {
-    const key = keyFor(userId, videoId);
+  async function resolveSource(userId: number, videoId: string, signal?: AbortSignal, quality?: DirectPlaybackQuality, force = false): Promise<Source | null> {
+    const key = keyFor(userId, videoId, quality);
     const cached = sources.get(key);
     if (!force && cached && cached.expiresAt > now()) return cached;
     if (cached) sources.delete(key);
@@ -146,7 +149,7 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
       const current = resolution;
       current.promise = (async () => {
         const operation = abortSignal(controller.signal, RESOLVE_TIMEOUT_MS, "direct video source timeout");
-        try { return await resolveFresh(userId, videoId, operation.signal); } finally { operation.dispose(); }
+        try { return await resolveFresh(userId, videoId, operation.signal, quality); } finally { operation.dispose(); }
       })().then((source) => {
         if (source && !controller.signal.aborted) sources.set(key, source);
         return controller.signal.aborted ? null : source;
@@ -176,14 +179,14 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
     });
   }
 
-  async function response(userId: number, videoId: string, rangeValue: string | null, signal?: AbortSignal): Promise<Response | null> {
+  async function response(userId: number, videoId: string, rangeValue: string | null, signal?: AbortSignal, quality?: DirectPlaybackQuality): Promise<Response | null> {
     const range = parseAudioRange(rangeValue, CHUNK_BYTES);
     if (!range) return notSatisfiable();
     const active = bufferedRequests.get(userId) ?? 0;
     if (active >= MAX_BUFFERED_REQUESTS) return new Response(null, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
     bufferedRequests.set(userId, active + 1);
     try {
-      let source = await resolveSource(userId, videoId, signal);
+      let source = await resolveSource(userId, videoId, signal, quality);
       if (!source) return null;
       const fetchRange = async (candidate: Source) => {
         const operation = abortSignal(signal, RANGE_TIMEOUT_MS, "direct video range timeout");
@@ -201,7 +204,7 @@ export function createDownloadVideoProgressiveStreaming(dependencies: Dependenci
       }
       if (upstream && [403, 404, 410].includes(upstream.status)) {
         await upstream.body?.cancel().catch(() => {});
-        source = await resolveSource(userId, videoId, signal, true);
+        source = await resolveSource(userId, videoId, signal, quality, true);
         if (!source) return null;
         upstream = await fetchRange(source);
       }

@@ -763,6 +763,7 @@ export const fr: Locale = {
     "playerLanguage": "Langue du lecteur et des sous-titres",
     "quality": "Qualité préférée",
     "autoQuality": "automatique",
+    "playerMaximumQuality": "Qualité de lecture maximale",
     "qualityHint": "Il s'agit de la qualité préférée. Le lecteur d'origine peut la modifier selon la connexion et les formats disponibles.",
     "playerSettingsSaved": "Paramètres du lecteur enregistrés",
     "playbackSpeed": "Vitesse de lecture par défaut",

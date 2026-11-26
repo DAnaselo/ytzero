@@ -1,4 +1,5 @@
 import type { MediaSidxIndex, MediaSidxReference } from "./mediaSidx";
+import type { DirectPlaybackQuality } from "../../shared/directPlaybackQuality";
 
 export const DIRECT_VIDEO_HLS_TARGET_SEGMENT_SECONDS = 6;
 export const DIRECT_VIDEO_HLS_MAX_RANGE_BYTES = 32 * 1024 * 1024;
@@ -20,6 +21,7 @@ export interface VideoVodPlaylistInput {
   resourcePath?: "hls" | "direct-hls";
   /** Stable identity of the indexed representation, used to reject stale ranges. */
   resourceVersion?: string;
+  quality?: DirectPlaybackQuality;
   video: MediaSidxIndex;
   audio: MediaSidxIndex;
   metadata: VideoVodMetadata;
@@ -264,7 +266,10 @@ export function createVideoVodPresentation(input: VideoVodPlaylistInput): VideoV
   if (input.resourceVersion != null && !/^[A-Za-z0-9_-]{8,128}$/.test(input.resourceVersion)) {
     return unsupported("invalid_metadata");
   }
-  const query = input.resourceVersion ? `?v=${encodeURIComponent(input.resourceVersion)}` : "";
+  const params = new URLSearchParams();
+  if (input.resourceVersion) params.set("v", input.resourceVersion);
+  if (input.quality) params.set("quality", input.quality);
+  const query = params.size ? `?${params}` : "";
   const videoUri = `${baseUri}/video.mp4${query}`;
   const audioUri = `${baseUri}/audio.mp4${query}`;
   const channels = metadata.audioChannels == null ? "" : `,CHANNELS="${metadata.audioChannels}"`;
